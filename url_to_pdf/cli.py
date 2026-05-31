@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--images",
         action="store_true",
-        help="Include image references in PDF (default: text only)",
+        help="Include image alt text and captions in PDF (default: text only; actual images are never embedded)",
     )
     parser.add_argument(
         "--no-estimate",

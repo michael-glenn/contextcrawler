@@ -177,7 +177,7 @@ class App(ctk.CTk):
 
         self._images_var = tk.BooleanVar(value=False)
         self._images_cb = ctk.CTkCheckBox(
-            depth_frame, text="Include images",
+            depth_frame, text="Include image captions / alt text",
             variable=self._images_var, state="disabled",
         )
         self._images_cb.pack(side="left", padx=16)
