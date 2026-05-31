@@ -33,6 +33,7 @@ def clean_for_llm(markdown: str) -> str:
     lines = _remove_page_markers(lines)
     lines = _remove_dot_leader_lines(lines)
     lines = _remove_boilerplate_lines(lines)
+    lines = _remove_google_translate_blocks(lines)
     lines = _remove_url_clusters(lines)
     lines = _remove_language_selector_blocks(lines)
     lines = _remove_repeated_running_headers(lines)
@@ -76,12 +77,6 @@ _BOILERPLATE_RE = re.compile(
     r"|"
     r"^#\s*\(anonymous\)\s*$"
     r"|"
-    r"^Original text\s*$"
-    r"|"
-    r"^Rate this translation\s*$"
-    r"|"
-    r"^Your feedback will be used"
-    r"|"
     r"^Log In\s*$"
     r"|"
     r"^Esc\s*$"
@@ -111,6 +106,10 @@ _JUNK_SUBSTRING_RE = re.compile(
     r"Erase the '#!' part"
     r"|"
     r"Loading[…\.]{0,3}"
+    r"|"
+    r"Rate this translation"
+    r"|"
+    r"Your feedback will be used to help improve Google Translate"
     r"|"
     r"^\s*Articles\s+Chapter\s+\d+.*\d+\s*$",   # leaked PDF TOC refs
     re.IGNORECASE,
@@ -194,6 +193,52 @@ def _remove_url_clusters(lines: list[str]) -> list[str]:
             continue  # pure URL line
         # If line is mostly URLs (< 15 non-URL chars), also drop
         if len(without_urls) < 15 and _URL_RE.search(stripped):
+            continue
+        result.append(line)
+    return result
+
+
+def _remove_google_translate_blocks(lines: list[str]) -> list[str]:
+    """Remove Google Translate widget text in all its forms.
+
+    Handles:
+    - Standalone lines: "Original text", "Rate this translation", etc.
+    - Merged lines where the PDF renderer joined several phrases onto one line.
+    - The JS-disabled preamble: "re-load the page to view the content."
+    """
+    # Phrases that, on their own line, mean the whole line is GT noise
+    standalone_re = re.compile(
+        r"^\s*("
+        r"re-?load the page to view the content\.?"
+        r"|Original text"
+        r"|Rate this translation"
+        r"|Your feedback will be used[\w\s,\.]*"
+        r"|Google Translate"
+        r")\s*$",
+        re.IGNORECASE,
+    )
+
+    # Substrings that contaminate a line even when mixed with other text
+    contamination_re = re.compile(
+        r"re-?load the page to view the content"
+        r"|Rate this translation"
+        r"|Your feedback will be used to help improve Google Translate"
+        r"|Original text\s+Rate this"          # merged form
+        r"|Google Translate\.",
+        re.IGNORECASE,
+    )
+
+    result: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if standalone_re.match(stripped):
+            continue
+        if contamination_re.search(stripped):
+            # Strip just the contaminating phrase(s), keep any residual text
+            cleaned = contamination_re.sub("", stripped).strip(" .,")
+            if cleaned:
+                result.append(cleaned)
+            # else: nothing left — drop the line
             continue
         result.append(line)
     return result

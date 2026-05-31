@@ -155,6 +155,56 @@ class BrowserSession:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Google Translate noise scrubber
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+# Phrases that appear as a block wherever Google Translate injects its widget.
+# Matched as a contiguous run so partial appearances (e.g. mid-sentence) are
+# not over-zealously stripped.
+_GT_BLOCK_RE = _re.compile(
+    r"("
+    r"re-load the page to view the content\.?"
+    r"|Original text"
+    r"|Rate this translation"
+    r"|Your feedback will be used to help improve Google Translate\.?"
+    r")"
+    r"[\s\S]{0,200}?"          # optional bridge between adjacent phrases
+    r"(?="                     # look-ahead for the next phrase or end
+    r"Original text"
+    r"|Rate this translation"
+    r"|Your feedback will be used"
+    r"|$)",
+    _re.IGNORECASE,
+)
+
+# Simpler per-sentence scrub for phrases that survive as isolated sentences
+_GT_LINE_RE = _re.compile(
+    r"^\s*("
+    r"re-?load the page to view the content\.?"
+    r"|Original text"
+    r"|Rate this translation"
+    r"|Your feedback will be used[\w\s,\.]*"
+    r"|Google Translate"
+    r")\s*$",
+    _re.IGNORECASE | _re.MULTILINE,
+)
+
+
+def _scrub_google_translate(text: str) -> str:
+    """Remove Google Translate widget phrases from extracted body text."""
+    text = _GT_BLOCK_RE.sub("", text)
+    text = _GT_LINE_RE.sub("", text)
+    # Collapse runs of blank lines left behind
+    text = _re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+# ---------------------------------------------------------------------------
+
+
 def _extract_links(html: str, base_url: str, base_domain: str) -> list[str]:
     """Pull same-domain links from an HTML snippet."""
     soup = BeautifulSoup(html, "lxml")
@@ -220,7 +270,9 @@ def fetch_and_extract(
             favor_recall=True,
         )
         if text and text.strip():
-            combined_text_parts.append(text.strip())
+            text = _scrub_google_translate(text)
+            if text:
+                combined_text_parts.append(text)
 
     full_text = "\n\n".join(combined_text_parts)
 
