@@ -129,6 +129,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(step1, text="Starting URL:", anchor="w").grid(
             row=1, column=0, padx=(10, 4), pady=6, sticky="w")
         self._url_var = tk.StringVar()
+        self._url_var.trace_add("write", self._on_url_changed)
         ctk.CTkEntry(step1, textvariable=self._url_var,
                      placeholder_text="https://example.com").grid(
             row=1, column=1, padx=4, pady=6, sticky="ew")
@@ -365,6 +366,27 @@ class App(ctk.CTk):
                     self.after(0, on_done)
 
         threading.Thread(target=_target, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # URL change → update default output filename
+    # ------------------------------------------------------------------
+
+    def _on_url_changed(self, *_):
+        from .utils import url_to_filename, normalise_url
+        url = self._url_var.get().strip()
+        if not url:
+            self._crawl_output_var.set("")
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+        try:
+            suggested = url_to_filename(normalise_url(url)) + ".pdf"
+        except Exception:
+            suggested = ""
+        # Only overwrite if the user hasn't typed a custom path
+        current = self._crawl_output_var.get()
+        if not current or current.endswith(".pdf") and "/" not in current and "\\" not in current:
+            self._crawl_output_var.set(suggested)
 
     # ------------------------------------------------------------------
     # Step 1: Run estimate
