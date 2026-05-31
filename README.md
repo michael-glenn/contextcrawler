@@ -54,10 +54,10 @@ py url-to-pdf.py --gui
 The GUI guides you through three steps:
 
 1. **Enter a URL** and click **Estimate site size** — performs a shallow scan and tells you roughly how many pages are reachable
-2. **Choose your crawl depth** based on the estimate, set options, and confirm the output path
-3. Click **Start Crawl** — progress is shown live in the output panel
+2. **Choose your crawl depth** based on the estimate, set options, and confirm the output path (auto-suggested from the URL)
+3. Click **Start Crawl** — live progress is shown in the output panel
 
-A second tab lets you convert any existing PDF to Markdown, with an optional LLM-cleaning pass.
+A second tab lets you convert any existing PDF to Markdown, with an optional LLM-cleaning pass. The output filename is auto-suggested from the input PDF path.
 
 ---
 
@@ -114,19 +114,40 @@ py url-to-pdf.py --to-md my_document.pdf --clean
 - Collects content from all page frames, including inline `srcdoc` iframes used by some help-centre platforms
 - Stays within the original domain; filters known ad networks and tracker domains
 - Deduplicates pages so each URL appears only once regardless of how many links point to it
+- After crawling, automatically detects and strips **site-wide navigation links** using frequency analysis — any link appearing on more than 50% of pages is treated as navigation and excluded from chapter link lists. This is fully site-agnostic and requires no configuration
 - Shows live progress: depth, pages found, queue size
+- Playwright's Chromium browser is downloaded automatically on first run if not already present
 
 ### Content extraction
 - **trafilatura** identifies and extracts the main body text, discarding navigation, headers, footers, and sidebars
-- Google Translate widget text and language-selector dropdowns are filtered out at extraction time
-- Link text is captured as human-readable anchor text, not raw URLs
+- **Google Translate** widget text (language selectors, "Rate this translation", "Your feedback will be used...") is filtered out at extraction time
+- Links are captured as human-readable **anchor text**, not raw URLs; the URL is only shown when it was explicitly visible on the page
+- Frames that are language-selector or translation widgets are skipped entirely before any text is extracted
 
 ### PDF generation
 - **reportlab** builds the PDF with a cover page, auto-generated table of contents, one chapter per crawled page, and running headers and page numbers
 
 ### Markdown conversion (`--to-md`)
 - **PyMuPDF** extracts text from the PDF, using font size and bold flags to detect headings
-- The `--clean` pass removes: TOC dot leaders, page-number markers, running headers/footers, boilerplate lines, URL clusters, language-selector blocks, Google Translate phrases, empty chapters, and duplicate headings — leaving clean, continuous prose ready for LLM ingestion
+
+### LLM cleaning pass (`--to-md --clean`)
+The `--clean` flag runs a multi-pass cleaning pipeline designed to produce prose that an LLM can read without wasted tokens:
+
+| Pass | What it removes |
+|---|---|
+| TOC section | Everything between "Table of Contents" and first chapter |
+| Page markers | `--- *Page N*` separators |
+| Dot leaders | `. . . . . 3` lines from TOC |
+| Boilerplate lines | Generated date, copyright notices, `\| \|` table cells |
+| Google Translate text | "Original text", "Rate this translation", "Your feedback will be used..." |
+| URL clusters | Lines that are nothing but URLs |
+| Site navigation blocks | Merged navigation dumps (detected by URL-density heuristic — >40% URL content in a line) |
+| Language selectors | `› Select Language › Abkhaz › Acehnese ...` blocks |
+| Link dump sections | "Links on this page:" + following URL list |
+| Repeated running headers | Short lines appearing 3+ times across chapters |
+| Empty chapters | Entire sections with no real prose after cleaning |
+| Duplicate headings | Same heading appearing twice in a row |
+| Broken paragraphs | Lines split mid-sentence are rejoined |
 
 ---
 
@@ -136,11 +157,11 @@ py url-to-pdf.py --to-md my_document.pdf --clean
 url-to-pdf.py          Entry point
 url_to_pdf/
   cli.py               Argument parsing and mode dispatch
-  crawler.py           BFS crawler with progress display
-  extractor.py         Playwright fetch + trafilatura extraction
+  crawler.py           BFS crawler, nav-frequency analysis, progress display
+  extractor.py         Playwright fetch + trafilatura extraction + widget filtering
   pdf_builder.py       reportlab PDF generation
   pdf_converter.py     PyMuPDF PDF → Markdown conversion
-  pdf_cleaner.py       LLM-optimised Markdown cleaning pass
+  pdf_cleaner.py       LLM-optimised Markdown cleaning pipeline
   utils.py             URL normalisation, domain checks, ad filtering
   gui.py               customtkinter graphical interface
 ```
@@ -167,3 +188,4 @@ url_to_pdf/
 - **Rate limiting** — some sites block automated crawlers; increase `--delay` if you encounter errors
 - **Very large sites** — use `-d 1` or `-d 2` for large sites; unlimited depth can produce enormous PDFs
 - **Images** — actual images are never embedded in the PDF; only alt text and captions are optionally included
+- **PDF cleaning** — the `--clean` pass is heuristic-based; results may vary across PDF layouts and site structures
