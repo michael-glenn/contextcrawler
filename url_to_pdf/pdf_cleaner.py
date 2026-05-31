@@ -34,6 +34,7 @@ def clean_for_llm(markdown: str) -> str:
     lines = _remove_dot_leader_lines(lines)
     lines = _remove_boilerplate_lines(lines)
     lines = _remove_url_clusters(lines)
+    lines = _remove_language_selector_blocks(lines)
     lines = _remove_repeated_running_headers(lines)
     lines = _remove_link_dump_sections(lines)
     lines = _remove_duplicate_headings(lines)
@@ -195,6 +196,41 @@ def _remove_url_clusters(lines: list[str]) -> list[str]:
         if len(without_urls) < 15 and _URL_RE.search(stripped):
             continue
         result.append(line)
+    return result
+
+
+def _remove_language_selector_blocks(lines: list[str]) -> list[str]:
+    """Remove language-selector / Google Translate widget text.
+
+    Detects a block by spotting the '› Select Language' marker or a run of
+    lines that consist almost entirely of '› <Language name>' entries, then
+    drops lines until the block ends (empty line or non-language content).
+    """
+    # Simple trigger: any line containing the selector header or several
+    # consecutive › tokens with known language fragments.
+    selector_header_re = re.compile(r"›\s*Select Language", re.IGNORECASE)
+    # A language-list line: contains multiple "› Word" groups
+    lang_entry_re = re.compile(r"(›\s*[A-Z][a-zA-Z\s\(\)]+){3,}")
+
+    result: list[str] = []
+    skip = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if selector_header_re.search(stripped):
+            skip = True
+            continue
+
+        if skip:
+            # Keep skipping while the line looks like language entries or is blank
+            if not stripped or lang_entry_re.search(stripped) or stripped.startswith("›"):
+                continue
+            else:
+                skip = False  # real content resumed
+
+        result.append(line)
+
     return result
 
 

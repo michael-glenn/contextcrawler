@@ -50,6 +50,51 @@ class Page:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Frame filtering
+# ---------------------------------------------------------------------------
+
+# Language names that reliably appear in translation-widget frames
+_LANG_SELECTOR_LANGUAGES = frozenset([
+    "Abkhaz", "Acehnese", "Acholi", "Afrikaans", "Albanian", "Amharic",
+    "Azerbaijani", "Belarusian", "Bulgarian", "Cantonese", "Catalan",
+    "Cebuano", "Croatian", "Czech", "Danish", "Estonian", "Filipino",
+    "Finnish", "Galician", "Georgian", "Gujarati", "Hausa", "Hebrew",
+    "Hungarian", "Icelandic", "Indonesian", "Japanese", "Javanese",
+    "Kannada", "Kazakh", "Khmer", "Kinyarwanda", "Korean", "Kyrgyz",
+    "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Malayalam",
+    "Marathi", "Mongolian", "Nepali", "Norwegian", "Punjabi", "Romanian",
+    "Serbian", "Sinhala", "Slovak", "Slovenian", "Somali", "Swahili",
+    "Tajik", "Tamil", "Telugu", "Turkish", "Turkmen", "Ukrainian",
+    "Uzbek", "Vietnamese", "Zulu",
+])
+
+
+def _is_widget_frame(html: str) -> bool:
+    """Return True if *html* looks like a UI widget frame to skip.
+
+    Detects:
+    - Google Translate language-selector dropdowns
+    - Any frame whose visible text is >60 % known language names
+    """
+    # Quick keyword check — "Select Language" heading is a reliable signal
+    if "Select Language" in html and "Abkhaz" in html:
+        return True
+
+    # Count language-name hits in a plain-text excerpt
+    text_sample = html[:8000]
+    hits = sum(1 for lang in _LANG_SELECTOR_LANGUAGES if lang in text_sample)
+    if hits >= 20:
+        return True
+
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Browser session
+# ---------------------------------------------------------------------------
+
+
 class BrowserSession:
     """Wraps a Playwright browser for re-use across many fetches."""
 
@@ -76,12 +121,13 @@ class BrowserSession:
             pw_page.goto(url, wait_until="networkidle", timeout=self._timeout_ms)
             pw_page.wait_for_timeout(1500)
 
-            # Collect HTML from every frame (catches srcdoc / inline iframes)
+            # Collect HTML from every frame (catches srcdoc / inline iframes).
+            # Skip widget frames such as the Google Translate language selector.
             frame_htmls: list[str] = []
             for frame in pw_page.frames:
                 try:
                     fhtml = frame.content()
-                    if fhtml and len(fhtml) > 200:
+                    if fhtml and len(fhtml) > 200 and not _is_widget_frame(fhtml):
                         frame_htmls.append(fhtml)
                 except Exception:
                     pass
