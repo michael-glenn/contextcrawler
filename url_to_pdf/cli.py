@@ -11,6 +11,12 @@ from .utils import get_domain, url_to_filename, normalise_url
 
 
 def main(argv: list[str] | None = None) -> None:
+    # No arguments → launch GUI
+    if argv is None and len(sys.argv) == 1:
+        from .gui import launch
+        launch()
+        return
+
     parser = argparse.ArgumentParser(
         prog="url-to-pdf",
         description=(
@@ -22,6 +28,11 @@ def main(argv: list[str] | None = None) -> None:
 
     # ---- Mutually exclusive modes ----------------------------------------
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the graphical interface (default when no arguments given)",
+    )
     mode.add_argument(
         "--to-md",
         metavar="PDF_FILE",
@@ -71,6 +82,14 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     args = parser.parse_args(argv)
+
+    # ------------------------------------------------------------------
+    # Mode: GUI
+    # ------------------------------------------------------------------
+    if args.gui:
+        from .gui import launch
+        launch()
+        return
 
     # ------------------------------------------------------------------
     # Mode: PDF → Markdown conversion
