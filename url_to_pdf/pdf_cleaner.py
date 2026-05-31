@@ -294,17 +294,32 @@ def _remove_site_navigation_lines(lines: list[str]) -> list[str]:
         re.IGNORECASE,
     )
 
-    # Fingerprint: a line is a merged nav block if it contains 3+ of these
-    _NAV_FINGERPRINTS = [
-        "horizzon help", "unify help", "bizzdesign knowledge base",
-        "admin login", "hopex community", "search entire portal",
-    ]
+    # Generic utility-page URL pattern — site-agnostic
+    _UTILITY_URL_RE = re.compile(
+        r"^https?://[^/]+/"
+        r"(login|logout|search|signin|sign-in|sign_in|"
+        r"register|signup|sign-up|forgot-password|reset-password|"
+        r"404|sitemap|home/?)(\?.*)?$",
+        re.IGNORECASE,
+    )
 
-    def _is_nav_dump(text: str) -> bool:
-        """True if the line is predominantly navigation content."""
-        lower = text.lower()
-        hits = sum(1 for fp in _NAV_FINGERPRINTS if fp in lower)
-        return hits >= 2
+    def _is_nav_dump_line(text: str) -> bool:
+        """Heuristic: True if this line is a merged navigation URL dump.
+
+        These lines look like:
+          "https://example.com/ https://example.com/docs Nav Item 1 Nav Item 2"
+        They have a high density of URL characters and multiple URLs.
+        This is entirely site-agnostic — no hardcoded anchor texts.
+        """
+        if len(text) < 80:
+            return False
+        url_chars = sum(len(m.group()) for m in _URL_RE.finditer(text))
+        if url_chars == 0:
+            return False
+        url_ratio = url_chars / len(text)
+        url_count = len(_URL_RE.findall(text))
+        # >40% URL content and at least 2 URLs → nav dump
+        return url_ratio > 0.40 and url_count >= 2
 
     result: list[str] = []
     for line in lines:
@@ -312,14 +327,14 @@ def _remove_site_navigation_lines(lines: list[str]) -> list[str]:
         if not stripped:
             result.append(line)
             continue
-        # Standalone nav anchor text
+        # Standalone nav anchor text (site-specific, kept for known platforms)
         if stripped.lower() in _NAV_TEXTS:
             continue
-        # Standalone nav URL
-        if _NAV_URL_RE.match(stripped):
+        # Standalone utility-page URL (generic)
+        if _UTILITY_URL_RE.match(stripped):
             continue
-        # Merged nav block (PDF-renderer joined multiple nav items)
-        if _is_nav_dump(stripped):
+        # Merged navigation URL dump (generic heuristic)
+        if _is_nav_dump_line(stripped):
             continue
         result.append(line)
     return result

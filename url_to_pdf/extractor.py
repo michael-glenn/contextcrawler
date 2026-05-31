@@ -54,47 +54,23 @@ class Page:
 
 
 # ---------------------------------------------------------------------------
-# Site-wide navigation link filtering
+# Generic navigation link pre-filter (applied at extraction time)
 # ---------------------------------------------------------------------------
 
-# URL path suffixes that are site-wide navigation, not content links.
-# Matching is done against the path component of crawled links.
-_NAV_PATHS: frozenset[str] = frozenset([
-    "/",
-    "/articles/",
-    "/articles/alfabet-releases",
-    "/articles/horizzon-help",
-    "/articles/knowledge-base",
-    "/articles/unify-help",
-    "/login/",
-    "/search/",
-    "/forgot-password/",
-    "/home/",
-])
+def _is_obvious_nav_link(url: str) -> bool:
+    """Return True for links that are almost certainly site navigation.
 
-# Anchor texts that indicate site-wide navigation rather than content links.
-_NAV_ANCHOR_TEXTS: frozenset[str] = frozenset([
-    "horizzon help", "unify help", "bizzdesign knowledge base",
-    "admin login", "hopex community", "search entire portal",
-    "alfabet help", "knowledge base", "horizzon help",
-    "bizzdesign support", "documentation", "releases",
-    "contact support", "training courses",
-])
-
-
-def _is_nav_link(url: str, anchor_text: str) -> bool:
-    """Return True if this link is site-wide navigation rather than content."""
+    This is a lightweight, site-agnostic pre-filter that catches the most
+    common navigation patterns (root URL, login, search) *before* crawling.
+    The main nav-stripping pass runs *after* crawling using frequency analysis
+    in crawler._find_nav_links(), which is fully site-agnostic.
+    """
     from urllib.parse import urlparse
-    path = urlparse(url).path.rstrip("/") + "/"
-    # Match known navigation paths exactly
-    for nav in _NAV_PATHS:
-        nav_norm = nav.rstrip("/") + "/"
-        if path == nav_norm:
-            return True
-    # Match by anchor text (case-insensitive)
-    if anchor_text.strip().lower() in _NAV_ANCHOR_TEXTS:
-        return True
-    return False
+    path = urlparse(url).path.rstrip("/")
+    # Root URL or single-segment utility pages common to most CMS platforms
+    generic_nav = {"", "/login", "/logout", "/search", "/404", "/sitemap",
+                   "/forgot-password", "/home", "/register", "/signup"}
+    return path in generic_nav or path.endswith("/login") or path.endswith("/logout")
 
 
 # ---------------------------------------------------------------------------
@@ -287,8 +263,9 @@ def _extract_links(html: str, base_url: str, base_domain: str) -> list[tuple[str
             display = href          # URL was explicitly shown or no text
         else:
             display = anchor_text
-        # Skip site-wide navigation links
-        if _is_nav_link(href, display):
+        # Skip obvious site-wide navigation links (generic pre-filter).
+        # The main frequency-based nav filter runs post-crawl in crawler.py.
+        if _is_obvious_nav_link(href):
             continue
         links.append((href, display))
     return links
