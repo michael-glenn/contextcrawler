@@ -41,7 +41,10 @@ class Page:
     url: str
     title: str
     text: str                        # main body text (plain)
-    child_links: list[str] = field(default_factory=list)
+    child_links: list[tuple[str, str]] = field(default_factory=list)
+    # Each entry is (url, display_text).  display_text is the anchor text
+    # visible to the user; it equals the url only when the url was explicitly
+    # shown as text on the page.
     depth: int = 0
 
 
@@ -205,10 +208,15 @@ def _scrub_google_translate(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _extract_links(html: str, base_url: str, base_domain: str) -> list[str]:
-    """Pull same-domain links from an HTML snippet."""
+def _extract_links(html: str, base_url: str, base_domain: str) -> list[tuple[str, str]]:
+    """Pull same-domain links from an HTML snippet.
+
+    Returns list of (url, display_text) tuples.  display_text is the
+    visible anchor text; it falls back to the URL when the anchor text is
+    empty or is itself a URL.
+    """
     soup = BeautifulSoup(html, "lxml")
-    links: list[str] = []
+    links: list[tuple[str, str]] = []
     for a in soup.find_all("a", href=True):
         href = a["href"]
         # Skip JS pseudo-links and plain anchors
@@ -229,7 +237,13 @@ def _extract_links(html: str, base_url: str, base_domain: str) -> list[str]:
             continue
         if not same_domain(href, base_domain):
             continue
-        links.append(href)
+        anchor_text = a.get_text(separator=" ", strip=True)
+        # Use anchor text only when it adds meaning beyond the URL itself
+        if not anchor_text or anchor_text.startswith("http"):
+            display = href          # URL was explicitly shown or no text
+        else:
+            display = anchor_text
+        links.append((href, display))
     return links
 
 
@@ -277,16 +291,16 @@ def fetch_and_extract(
     full_text = "\n\n".join(combined_text_parts)
 
     # Collect links from all frames
-    all_links: list[str] = []
+    all_links: list[tuple[str, str]] = []
     for fhtml in frame_htmls:
         all_links.extend(_extract_links(fhtml, base_url=url, base_domain=base_domain))
 
-    # Deduplicate while preserving order
+    # Deduplicate by URL while preserving order
     seen: set[str] = set()
-    unique_links: list[str] = []
-    for lnk in all_links:
-        if lnk not in seen:
-            seen.add(lnk)
-            unique_links.append(lnk)
+    unique_links: list[tuple[str, str]] = []
+    for lnk_url, lnk_text in all_links:
+        if lnk_url not in seen:
+            seen.add(lnk_url)
+            unique_links.append((lnk_url, lnk_text))
 
     return Page(url=url, title=title, text=full_text, child_links=unique_links)

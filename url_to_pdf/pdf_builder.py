@@ -297,8 +297,13 @@ def build_pdf(pages: list[Page], output_path: str, start_url: str) -> None:
         if page.child_links:
             story.append(Spacer(1, 0.5 * cm))
             story.append(Paragraph("Links on this page:", styles["SectionHeading"]))
-            for link in page.child_links[:30]:  # cap to keep PDF reasonable
-                story.append(Paragraph(_esc(link), styles["URLStyle"]))
+            for link_url, link_text in page.child_links[:30]:  # cap to keep PDF reasonable
+                # Show visible anchor text; append URL only when text IS the URL
+                if link_text == link_url:
+                    display = _esc(link_url)
+                else:
+                    display = _esc(link_text)
+                story.append(Paragraph(display, styles["URLStyle"]))
 
         story.append(PageBreak())
 

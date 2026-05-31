@@ -108,7 +108,7 @@ def crawl(
             if max_depth is not None and depth >= max_depth:
                 continue
 
-            for child_url in page.child_links:
+            for child_url, _ in page.child_links:
                 if child_url not in visited:
                     visited.add(child_url)
                     queue.append((child_url, depth + 1))
