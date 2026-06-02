@@ -228,4 +228,4 @@ url_to_pdf/
 
 ---
 
-> **Note:** The GitHub repository is currently named `url-to-pdf`. To rename it, go to **Settings → General → Repository name** in GitHub. The internal Python package directory is also named `url_to_pdf` for backwards compatibility.
+> **Note:** The internal Python package directory is named `url_to_pdf` for backwards compatibility with existing imports.
