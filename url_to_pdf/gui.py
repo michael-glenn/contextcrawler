@@ -325,6 +325,9 @@ class App(ctk.CTk):
         current = self._md_outdir_var.get()
         if not current or ("/" not in current and "\\" not in current):
             self._md_outdir_var.set(suggested)
+        # Reset estimate label and button if the URL changes after an estimate
+        self._md_estimate_label.configure(text="", text_color=("gray40", "gray70"))
+        self._md_estimate_btn.configure(text="Estimate site size")
 
     def _browse_md_outdir(self):
         from tkinter import filedialog
@@ -353,9 +356,10 @@ class App(ctk.CTk):
         def _after():
             count = getattr(self, "_last_md_estimate", 0)
             self._md_estimate_label.configure(
-                text=f"~{count} pages reachable within 2 levels.",
-                text_color=("gray20", "gray90"),
+                text=f"✓  ~{count} pages found — choose depth below, then click Start Crawl",
+                text_color=("#1a7a3f", "#4caf75"),   # green in light/dark mode
             )
+            self._md_estimate_btn.configure(text="Re-estimate")
             self._set_md_step2_state("normal")
 
         self._run_in_thread(_run, self._md_estimate_btn, "Estimate site size",
@@ -611,6 +615,9 @@ class App(ctk.CTk):
         current = self._crawl_output_var.get()
         if not current or current.endswith(".pdf") and "/" not in current and "\\" not in current:
             self._crawl_output_var.set(suggested)
+        # Reset estimate label and button if the URL changes after an estimate
+        self._estimate_label.configure(text="", text_color=("gray40", "gray70"))
+        self._estimate_btn.configure(text="Estimate site size")
 
     def _on_pdf_input_changed(self, *_):
         from pathlib import Path
@@ -664,9 +671,10 @@ class App(ctk.CTk):
         def _after():
             count = getattr(self, "_last_estimate", 0)
             self._estimate_label.configure(
-                text=f"~{count} pages reachable within 2 levels of the start URL.",
-                text_color=("gray20", "gray90"),
+                text=f"✓  ~{count} pages found — choose depth below, then click Start Crawl",
+                text_color=("#1a7a3f", "#4caf75"),   # green in light/dark mode
             )
+            self._estimate_btn.configure(text="Re-estimate")
             self._estimate_done = True
             self._set_step2_state("normal")
 
