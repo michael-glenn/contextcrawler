@@ -88,9 +88,11 @@ class App(ctk.CTk):
         self._tabs.pack(fill="both", expand=False, padx=14, pady=(8, 0))
 
         self._tabs.add("Crawl to PDF")
+        self._tabs.add("Crawl to Markdown")
         self._tabs.add("Convert PDF → Markdown")
 
         self._build_crawl_tab(self._tabs.tab("Crawl to PDF"))
+        self._build_md_crawl_tab(self._tabs.tab("Crawl to Markdown"))
         self._build_convert_tab(self._tabs.tab("Convert PDF → Markdown"))
 
         # ---- Log panel ----
@@ -221,6 +223,178 @@ class App(ctk.CTk):
         self._crawl_btn.grid(row=row, column=0, columnspan=2, pady=12)
 
     # ---- Convert tab ----
+
+    # ---- Crawl to Markdown tab ----
+
+    def _build_md_crawl_tab(self, parent):
+        parent.columnconfigure(1, weight=1)
+        row = 0
+
+        # ── Step 1: URL + Estimate ────────────────────────────────────
+        step1 = ctk.CTkFrame(parent, corner_radius=6)
+        step1.grid(row=row, column=0, columnspan=2, padx=4, pady=(6, 4), sticky="ew")
+        step1.columnconfigure(1, weight=1)
+        row += 1
+
+        ctk.CTkLabel(step1, text="Step 1 — Enter URL and estimate site size",
+                     font=ctk.CTkFont(weight="bold"), anchor="w").grid(
+            row=0, column=0, columnspan=3, padx=10, pady=(8, 4), sticky="w")
+
+        ctk.CTkLabel(step1, text="Starting URL:", anchor="w").grid(
+            row=1, column=0, padx=(10, 4), pady=6, sticky="w")
+        self._md_url_var = tk.StringVar()
+        self._md_url_var.trace_add("write", self._on_md_url_changed)
+        ctk.CTkEntry(step1, textvariable=self._md_url_var,
+                     placeholder_text="https://example.com").grid(
+            row=1, column=1, padx=4, pady=6, sticky="ew")
+
+        self._md_estimate_btn = ctk.CTkButton(
+            step1, text="Estimate site size", width=160,
+            command=self._run_md_estimate,
+        )
+        self._md_estimate_btn.grid(row=1, column=2, padx=(4, 10), pady=6)
+
+        self._md_estimate_label = ctk.CTkLabel(
+            step1, text="", anchor="w",
+            font=ctk.CTkFont(size=12),
+            text_color=("gray40", "gray70"),
+        )
+        self._md_estimate_label.grid(row=2, column=0, columnspan=3,
+                                      padx=10, pady=(0, 8), sticky="w")
+
+        # ── Step 2: Depth + output dir ────────────────────────────────
+        self._md_step2 = ctk.CTkFrame(parent, corner_radius=6)
+        self._md_step2.grid(row=row, column=0, columnspan=2, padx=4, pady=4, sticky="ew")
+        self._md_step2.columnconfigure(1, weight=1)
+        row += 1
+
+        ctk.CTkLabel(self._md_step2, text="Step 2 — Choose depth and output folder",
+                     font=ctk.CTkFont(weight="bold"), anchor="w").grid(
+            row=0, column=0, columnspan=2, padx=10, pady=(8, 4), sticky="w")
+
+        ctk.CTkLabel(self._md_step2, text="Max depth:", anchor="w").grid(
+            row=1, column=0, padx=(10, 4), pady=6, sticky="w")
+        self._md_depth_var = tk.StringVar(value="2")
+        self._md_depth_menu = ctk.CTkOptionMenu(
+            self._md_step2,
+            values=["0", "1", "2", "3", "4", "5", "Unlimited"],
+            variable=self._md_depth_var,
+            width=120,
+            state="disabled",
+        )
+        self._md_depth_menu.grid(row=1, column=1, padx=4, pady=6, sticky="w")
+
+        ctk.CTkLabel(self._md_step2, text="Output folder:", anchor="w").grid(
+            row=2, column=0, padx=(10, 4), pady=6, sticky="w")
+        out_frame = ctk.CTkFrame(self._md_step2, fg_color="transparent")
+        out_frame.grid(row=2, column=1, padx=4, pady=6, sticky="ew")
+        out_frame.columnconfigure(0, weight=1)
+        self._md_outdir_var = tk.StringVar()
+        self._md_outdir_entry = ctk.CTkEntry(
+            out_frame, textvariable=self._md_outdir_var,
+            placeholder_text="(auto-generated from URL)", state="disabled",
+        )
+        self._md_outdir_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self._md_browse_btn = ctk.CTkButton(
+            out_frame, text="Browse…", width=80,
+            command=self._browse_md_outdir, state="disabled",
+        )
+        self._md_browse_btn.grid(row=0, column=1)
+
+        # ── Step 3: Start ─────────────────────────────────────────────
+        self._md_crawl_btn = ctk.CTkButton(
+            parent, text="▶  Crawl to Markdown", width=200,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._start_md_crawl,
+            state="disabled",
+        )
+        self._md_crawl_btn.grid(row=row, column=0, columnspan=2, pady=12)
+
+    def _on_md_url_changed(self, *_):
+        from .utils import url_to_filename, normalise_url
+        url = self._md_url_var.get().strip()
+        if not url:
+            self._md_outdir_var.set("")
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+        try:
+            suggested = url_to_filename(normalise_url(url)) + "_md"
+        except Exception:
+            suggested = ""
+        current = self._md_outdir_var.get()
+        if not current or ("/" not in current and "\\" not in current):
+            self._md_outdir_var.set(suggested)
+
+    def _browse_md_outdir(self):
+        from tkinter import filedialog
+        path = filedialog.askdirectory(title="Select output folder")
+        if path:
+            self._md_outdir_var.set(path)
+
+    def _run_md_estimate(self):
+        url = self._md_url_var.get().strip()
+        if not url:
+            self._log("⚠  Please enter a starting URL.")
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+            self._md_url_var.set(url)
+
+        self._md_estimate_label.configure(text="Scanning…", text_color=("gray40", "gray70"))
+        self._set_md_step2_state("disabled")
+
+        def _run():
+            from .crawler import estimate_link_count
+            from .utils import normalise_url
+            count = estimate_link_count(normalise_url(url), max_depth=2)
+            self._last_md_estimate = count
+
+        def _after():
+            count = getattr(self, "_last_md_estimate", 0)
+            self._md_estimate_label.configure(
+                text=f"~{count} pages reachable within 2 levels.",
+                text_color=("gray20", "gray90"),
+            )
+            self._set_md_step2_state("normal")
+
+        self._run_in_thread(_run, self._md_estimate_btn, "Estimate site size",
+                            clear_log=True, on_done=_after)
+
+    def _set_md_step2_state(self, state: str):
+        self._md_depth_menu.configure(state=state)
+        self._md_outdir_entry.configure(state=state)
+        self._md_browse_btn.configure(state=state)
+        self._md_crawl_btn.configure(state=state)
+
+    def _start_md_crawl(self):
+        url = self._md_url_var.get().strip()
+        if not url.startswith("http"):
+            url = "https://" + url
+
+        depth_str = self._md_depth_var.get()
+        depth_arg = None if depth_str == "Unlimited" else int(depth_str)
+        output_dir = self._md_outdir_var.get().strip() or None
+
+        def _run():
+            from .crawler import crawl
+            from .md_writer import write_markdown_dir
+            from .utils import normalise_url, url_to_filename
+
+            start_url = normalise_url(url)
+            out_dir = output_dir or (url_to_filename(start_url) + "_md")
+
+            print(f"Crawling {start_url} …")
+            pages = crawl(start_url, max_depth=depth_arg, delay=0.5)
+            if not pages:
+                print("No pages could be crawled.")
+                return
+            print(f"  Done — {len(pages)} page(s) crawled.")
+            print(f"\nWriting Markdown files → {out_dir}/")
+            write_markdown_dir(pages, start_url=start_url, output_dir=out_dir)
+            print("✓  Complete.")
+
+        self._run_in_thread(_run, self._md_crawl_btn, "▶  Crawl to Markdown")
 
     def _build_convert_tab(self, parent):
         parent.columnconfigure(1, weight=1)
