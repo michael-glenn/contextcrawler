@@ -1,4 +1,4 @@
-"""Command-line interface for url-to-pdf."""
+"""Command-line interface for ContextCrawler."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     parser = argparse.ArgumentParser(
-        prog="url-to-pdf",
+        prog="contextcrawler",
         description=(
             "Crawl a website and generate a book-like PDF,\n"
             "or convert an existing PDF to Markdown."
@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> None:
         # Auto-generate output directory name from URL if not specified
         output_dir = args.md_dir or (url_to_filename(start_url) + "_md")
 
-        print(f"\nurl-to-pdf  |  mode: direct Markdown  |  domain: {get_domain(start_url)}")
+        print(f"\nContextCrawler  |  mode: direct Markdown  |  domain: {get_domain(start_url)}")
         print("-" * 60)
 
         if not args.no_estimate:
@@ -186,7 +186,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     domain = get_domain(start_url)
-    print(f"\nurl-to-pdf  |  domain: {domain}")
+    print(f"\nContextCrawler  |  domain: {domain}")
     print("-" * 50)
 
     # ------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Optional GUI for url-to-pdf (customtkinter)."""
+"""Optional GUI for ContextCrawler (customtkinter)."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class _QueueWriter:
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("url-to-pdf")
+        self.title("ContextCrawler")
         self.geometry("800x680")
         self.minsize(680, 580)
         self.resizable(True, True)
@@ -78,7 +78,7 @@ class App(ctk.CTk):
         header.pack(fill="x", side="top")
         ctk.CTkLabel(
             header,
-            text="  url-to-pdf",
+            text="  ContextCrawler",
             font=ctk.CTkFont(size=20, weight="bold"),
             anchor="w",
         ).pack(side="left", padx=16, pady=10)
@@ -658,7 +658,7 @@ class App(ctk.CTk):
             start_url = normalise_url(url)
             domain = get_domain(start_url)
             depth_label = "unlimited" if depth_arg is None else depth_arg
-            print(f"url-to-pdf  |  domain: {domain}")
+            print(f"ContextCrawler  |  domain: {domain}")
             print(f"Crawl depth: {depth_label}")
             print(f"\nCrawling {start_url} …")
 
